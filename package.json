@@ -1,0 +1,70 @@
+{
+  "name": "snrepl",
+  "displayName": "snrepl",
+  "description": "Execute background scripts directly in VSCode",
+  "icon": "resources/logo.png",
+  "version": "0.0.2",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "publisher": "julian.hoch",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "snrepl.runScript",
+        "title": "Run script on instance"
+      }
+    ],
+    "configuration": {
+      "title": "ServiceNow REPL",
+      "properties": {
+        "snrepl.username": {
+          "type": "string",
+          "default": "",
+          "description": "ServiceNow Username"
+        },
+        "snrepl.password": {
+          "type": "string",
+          "default": "",
+          "description": "ServiceNow Password"
+        },
+        "snrepl.instance": {
+          "type": "string",
+          "default": "",
+          "description": "ServiceNow Instance"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "webpack --mode production",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.1",
+    "@types/node": "16.x",
+    "@types/vscode": "^1.82.0",
+    "@typescript-eslint/eslint-plugin": "^6.4.1",
+    "@typescript-eslint/parser": "^6.4.1",
+    "@vscode/test-electron": "^2.3.4",
+    "eslint": "^8.47.0",
+    "glob": "^10.3.3",
+    "mocha": "^10.2.0",
+    "ts-loader": "^9.4.4",
+    "typescript": "^5.1.6",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "axios": "^1.5.0"
+  }
+}
