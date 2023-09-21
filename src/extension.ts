@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import callSN from './sn';
+import { JsonTreeDataProvider } from './treeview';
+import { run } from './test/suite/index';
 
 interface Result {
 	name: string;
@@ -52,7 +54,32 @@ function extractScope(script: string): string {
 
 
 
-function formatOutput(output: ScriptOutput): string {
+function formatOutput(output: ScriptOutput): [string, boolean] {
+	let isAbbreviated = false;
+
+	// Function to abbreviate long strings or strings with line breaks
+	const abbreviate = (str: string) => {
+		let inQuotes = false;
+		let isAbbreviated = false;
+		const cleanedStr = str.replace(/[\r\n" ]+|[\s\t]+/g, (match, offset, string) => {
+			if (match === '"') {
+				return '';
+			}
+			if (/\r|\n/.test(match)) {
+				return '';
+			}
+			return inQuotes ? match : ' ';
+		}).trim();
+
+		const maxLength = 16;
+		let result = cleanedStr;
+		if (cleanedStr.length > maxLength) {
+			result = cleanedStr.substring(0, maxLength - 3) + '...';
+			isAbbreviated = true;
+		}
+		return { text: result, isAbbreviated };
+	};
+
 	// Create ASCII Art table header for 'results'
 	const resultsHeader = '+------------------+------------------+------------------+';
 	const resultsTitle = '| Name             | Type             | String           |';
@@ -60,7 +87,12 @@ function formatOutput(output: ScriptOutput): string {
 	// Format the 'results' array as an ASCII Art table
 	const resultsTable = [resultsHeader, resultsTitle, resultsHeader];
 	output.results.forEach((result) => {
-		const row = `| ${result.name.padEnd(16)} | ${result.type.padEnd(16)} | ${result.string.padEnd(16)} |`;
+		const abbreviated = abbreviate(result.string);
+		let row = `| ${result.name.padEnd(16)} | ${result.type.padEnd(16)} | ${abbreviated.text.padEnd(16)} |`;
+		if (abbreviated.isAbbreviated) {
+			row += " [See SNREPL Results for details]";
+			isAbbreviated = true;
+		}
 		resultsTable.push(row);
 	});
 	resultsTable.push(resultsHeader);
@@ -68,14 +100,20 @@ function formatOutput(output: ScriptOutput): string {
 	// Create ASCII Art table header for initial part
 	const initialHeader = '+--------+------------------+';
 	const initialTitle = '| Key    | Value            |';
-	const initialTable = [
-		initialHeader,
-		initialTitle,
-		initialHeader,
-		`| Type   | ${output.type.padEnd(16)} |`,
-		`| String | ${output.string.padEnd(16)} |`,
-		initialHeader
-	];
+	const initialTable = [initialHeader, initialTitle, initialHeader];
+
+	const abbreviatedType = abbreviate(output.type);
+	const abbreviatedString = abbreviate(output.string);
+
+	let typeRow = `| Type   | ${abbreviatedType.text.padEnd(16)} |`;
+	let stringRow = `| String | ${abbreviatedString.text.padEnd(16)} |`;
+
+	if (abbreviatedType.isAbbreviated || abbreviatedString.isAbbreviated) {
+		stringRow += " [See raw outputs below for details]";
+		isAbbreviated = true;
+	}
+
+	initialTable.push(typeRow, stringRow, initialHeader);
 
 	// Format the 'messages' array with separators and indentation
 	const messages = output.messages.map((message) => {
@@ -92,10 +130,14 @@ function formatOutput(output: ScriptOutput): string {
 		`Messages:\n${messageSeparator}\n${messages}`,
 		`Status: ${output.status}`,
 		`Start Time: ${output.start_time}`,
-		`End Time: ${output.end_time}`
+		`End Time: ${output.end_time}`,
+		`-----------------------------`, // Separator
+		`Raw Result:\n${output.string}`, // Raw output
+		`-----------------------------`, // Separator
+		`Raw Output (All):\n${JSON.stringify(output, null, 2)}` // Raw output
 	].join('\n\n');
 
-	return formattedOutput;
+	return [formattedOutput, isAbbreviated];
 }
 
 
@@ -103,6 +145,23 @@ function formatOutput(output: ScriptOutput): string {
 export function activate(context: vscode.ExtensionContext) {
 	const outputChannel = vscode.window.createOutputChannel("SNREPL");
 	outputChannel.show(true);  // This line makes the output panel visible.
+
+	const treeDataProvider = new JsonTreeDataProvider({});
+	// Keep a reference to the TreeView
+	const myTreeView = vscode.window.createTreeView('snrepl_resulttree', { treeDataProvider });
+	treeDataProvider.refresh();
+
+	// Register a command to reveal the TreeView
+	vscode.commands.registerCommand('snrepl.revealTreeView', async () => {
+		// Switch to the explorer
+		await vscode.commands.executeCommand('workbench.view.explorer');
+	});
+
+	// Create a Status Bar item
+	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	statusBar.command = 'snrepl.revealTreeView';
+	statusBar.text = 'SNREPL Results';
+	statusBar.tooltip = 'Click to see more details in the TreeView';
 
 	let disposable =
 		vscode.commands.registerCommand('snrepl.runScript',
@@ -145,13 +204,37 @@ export function activate(context: vscode.ExtensionContext) {
 
 					// Execute the code
 					callSN(code, instance, cookie, username, password, scope).then((result) => {
+						// Clear the output channel
+						outputChannel.clear();
+
 						// Format the output
-						let formattedOutput = formatOutput(result);
+						const [formattedOutput, wasAbbreviated] = formatOutput(result);
 						outputChannel.appendLine(formattedOutput);
+						const clipBoardText = result.string;
+						vscode.env.clipboard.writeText(clipBoardText);
+
+						// Show the output channel and take focus
+						outputChannel.show(true);
+
+						if (wasAbbreviated) {
+							statusBar.show();
+						} else {
+							statusBar.hide();
+						}
+
+						const resultData = Array.isArray(result.results) ? result.results : [];
+
+						// Update Tree Data
+						treeDataProvider.updateData(resultData);
+
+						// Refresh Tree View
+						treeDataProvider.refresh();
+
+						vscode.window.showInformationMessage('Script executed (scope: ' + scope + '). Results copied to clipboard.');
 					}).catch((error) => {
 						outputChannel.appendLine(error);
+						vscode.window.showInformationMessage('Script executed (scope: ' + scope + '). Error: ' + error);
 					});
-					vscode.window.showInformationMessage('Script executed (scope: ' + scope + ').');
 				}
 			});
 
