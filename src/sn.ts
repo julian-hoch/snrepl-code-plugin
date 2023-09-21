@@ -1,22 +1,28 @@
 
 
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 
-export default async function callSN(code: string, instance: string, username: string, password: string) {
+export default async function callSN(code: string, instance: string, cookie: string, username: string, password: string, scope: string = "global") {
 
     console.log("Calling ServiceNow with username:", username, "and password:", password);
-    const config = {
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': 'Basic ' + Buffer.from(username + ':' + password).toString('base64')
-        }
+    const config: AxiosRequestConfig = {};
+
+    config.withCredentials = true;
+
+    config.headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
     };
 
-    const formData = {
+    if (cookie) {
+        config.headers.Cookie = cookie;
+    } else {
+        config.headers.Authorization = 'Basic ' + Buffer.from(username + ':' + password).toString('base64');
+    }
 
+    const formData = {
         "debug_mode": false,
         "target": "server",
-        "scope": "global",
+        "scope": scope,
         "code": code,
         "user_data": "",
         "user_data_type": "Plain + (String)",
@@ -26,8 +32,6 @@ export default async function callSN(code: string, instance: string, username: s
         "show_strings": true,
         "html_messages": true, "fix_gslog": true,
         "support_hoisting": false,
-        "id": "fb97aec3975db5103264fcdfe153af35"
-
     };
 
     const payload = `data=${encodeURIComponent(JSON.stringify(formData))}`;

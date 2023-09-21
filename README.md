@@ -20,11 +20,27 @@ This extension is not yet available on the VSCode Marketplace. To install it, pa
 2. Open a JavaScript file and write your ServiceNow script.
 3. Run the command `Run script on instance` to execute the script.
 
+### Setting the Scope
+
+You can specify the scope for the script by adding an annotation at the top of your script file. Use the `@scope` annotation followed by the desired scope. For example:
+
+```javascript
+// @scope: global
+console.log('This script runs in the global scope.');
+```
+
+If you do not specify a scope, the script will run in `global`.
+
 ## Configuration
 
 - `snrepl.username`: ServiceNow Username
 - `snrepl.password`: ServiceNow Password
 - `snrepl.instance`: ServiceNow Instance hostname
+- `snrepl.sessionCookie`: ServiceNow Session Cookie (optional)
+
+### Session Cookie Configuration for SSO
+
+If you're using Single Sign-On (SSO) to authenticate with ServiceNow, you can manually set the session cookie in the extension settings. To do this, navigate to your ServiceNow instance in a web browser and inspect the cookies. You can copy the whole cookie string, or just the part that sets `JSESSIONID`. Then paste that into the `ServiceNow Session Cookie` field in the extension settings. This will allow the extension to use your existing authenticated session for its operations. With this approach, username and password are not required.
 
 ## Prerequisites
 

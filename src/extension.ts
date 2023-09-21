@@ -44,6 +44,13 @@ interface ScriptOutput {
 	options: Options;
 }
 
+function extractScope(script: string): string {
+	const regex = /\/\/\s*@scope:\s*(\w+)/;
+	const match = script.match(regex);
+	return match ? match[1] : 'global';
+}
+
+
 
 function formatOutput(output: ScriptOutput): string {
 	// Create ASCII Art table header for 'results'
@@ -110,6 +117,7 @@ export function activate(context: vscode.ExtensionContext) {
 					const username = config.get('username', '');
 					const password = config.get('password', '');
 					const instance = config.get('instance', '');
+					const cookie = config.get('cookie', '');
 
 					if (!instance) {
 						vscode.window.showErrorMessage('ServiceNow instance not configured.', 'Open Settings').then(selection => {
@@ -120,7 +128,7 @@ export function activate(context: vscode.ExtensionContext) {
 						return;
 					}
 
-					if (!username || !password) {
+					if (!cookie && (!username || !password)) {
 						vscode.window.showErrorMessage('ServiceNow credentials not configured.', 'Open Settings').then(selection => {
 							if (selection === 'Open Settings') {
 								vscode.commands.executeCommand('workbench.action.openSettings', '@ext:julian.hoch.snrepl');
@@ -131,15 +139,19 @@ export function activate(context: vscode.ExtensionContext) {
 
 					// Get the code from the active editor
 					let code = editor.document.getText();
+
+					// Get the scope from the active editor
+					const scope = extractScope(code);
+
 					// Execute the code
-					callSN(code, instance, username, password).then((result) => {
+					callSN(code, instance, cookie, username, password, scope).then((result) => {
 						// Format the output
 						let formattedOutput = formatOutput(result);
 						outputChannel.appendLine(formattedOutput);
 					}).catch((error) => {
 						outputChannel.appendLine(error);
 					});
-					vscode.window.showInformationMessage('Script executed.');
+					vscode.window.showInformationMessage('Script executed (scope: ' + scope + ').');
 				}
 			});
 
